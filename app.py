@@ -20,7 +20,6 @@ def validate_user_data(name, age):
     Validate user name and age.
     Returns: (is_valid: bool, error_message: str)
     """
-    print("name:", name, "age:", age)
     # Name validation
     if not isinstance(name, str) or pd.isna(name) or name.strip() == '':
         return False, 'Name cannot be empty'
@@ -116,6 +115,11 @@ def delete_user(name):
       404:
         description: User not found
     """
+    if not name or name.strip() == '':
+        return jsonify({'error': 'Name cannot be empty'}), 400
+    
+    name = name.strip()
+    
     for user in users:
         if user['Name'] == name:
             users.remove(user)
