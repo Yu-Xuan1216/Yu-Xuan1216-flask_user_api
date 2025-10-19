@@ -28,9 +28,16 @@ def validate_user_data(name, age):
     # Age validation
     if pd.isna(age):
         return False, 'Age cannot be empty'
-    if not isinstance(age, (int, float)) or int(age) != age:
-        return False, 'Age must be an number'
-    age = int(age)
+    
+    try:
+        age_float = float(age)
+    except (ValueError, TypeError):
+        return False, 'Age must be a number'
+
+    if not age_float.is_integer():
+        return False, 'Age must be an integer'
+
+    age = int(age_float)
     if age <= 0 or age > 120:
         return False, 'Age must be between 1 and 120'
 
