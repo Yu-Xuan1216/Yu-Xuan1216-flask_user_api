@@ -9,7 +9,32 @@ Swagger(app)
 users = []
 
 def user_exists(name):
+    """
+    Check if a user with the given name already exists.
+    Returns: bool
+    """
     return any(user['Name'] == name for user in users)
+
+def validate_user_data(name, age):
+    """
+    Validate user name and age.
+    Returns: (is_valid: bool, error_message: str)
+    """
+    print("name:", name, "age:", age)
+    # Name validation
+    if not isinstance(name, str) or pd.isna(name) or name.strip() == '':
+        return False, 'Name cannot be empty'
+
+    # Age validation
+    if pd.isna(age):
+        return False, 'Age cannot be empty'
+    if not isinstance(age, (int, float)) or int(age) != age:
+        return False, 'Age must be an number'
+    age = int(age)
+    if age <= 0 or age > 120:
+        return False, 'Age must be between 1 and 120'
+
+    return True, ''
 
 @app.route('/users', methods=['POST'])
 def create_user():
@@ -31,7 +56,7 @@ def create_user():
               type: string
               description: The user's name
             Age:
-              type: number
+              type: integer
               description: The user's age
           required:
             - Name
@@ -47,25 +72,18 @@ def create_user():
     if not data:
         return jsonify({'error': 'Name and age are required'}), 400
     
-    name = str(data.get('Name', '')).strip()
+    name = data.get('Name')
     age = data.get('Age')
 
-    # Validate name
-    if not name:
-        return jsonify({'error': 'Name cannot be empty'}), 400
+    is_valid, error = validate_user_data(name, age)
+    if not is_valid:
+        return jsonify({'error': error}), 400
+    
+    name = str(name).strip()
+    age = int(age)
 
-    # Validate data types
-    if not isinstance(data['Name'], str) or not isinstance(data['Age'], (int, float)):
-        return jsonify({'error': 'Invalid data types. Name should be string and age should be number'}), 400
-    
-    # Validate age type and range
-    if not isinstance(age, (int, float)):
-        return jsonify({'error': 'Age must be a number'}), 400
-    if age <= 0 or age > 120:
-        return jsonify({'error': 'Age must be between 1 and 120'}), 400
-    
     # Check if user already exists
-    if user_exists(data['Name']):
+    if user_exists(name):
         return jsonify({'error': 'User already exists'}), 400
     
     user = {'Name': name, 'Age': age}
@@ -120,7 +138,7 @@ def get_users():
                       name:
                         type: string
                       age:
-                        type: number
+                        type: integer
                 count:
                   type: integer
     """
@@ -160,29 +178,53 @@ def upload_users():
     
     try:
         df = pd.read_csv(file)
-        
-        # Validate required columns
-        if not all(col in df.columns for col in ['Name', 'Age']):
-            return jsonify({'error': 'CSV must contain "Name" and "Age" columns'}), 400
-        
-        # Convert DataFrame to list of dictionaries
-        new_users = df.to_dict('records')
-        
-        # Add new users
-        added_users = []
-        for user in new_users:
-            # Check if user already exists
-            if not user_exists(user['Name']):
-                users.append(user)
-                added_users.append(user)
-        
-        return jsonify({
-            'message': f'Successfully added {len(added_users)} users',
-            'added_users': added_users
-        }), 201
-        
     except Exception as e:
         return jsonify({'error': f'Error processing CSV file: {str(e)}'}), 400
+    
+    # Validate required columns
+    if not all(col in df.columns for col in ['Name', 'Age']):
+        return jsonify({'error': 'CSV must contain "Name" and "Age" columns'}), 400
+    
+    # Convert DataFrame to list of dictionaries
+    new_users = df.to_dict('records')
+    
+    # Add new users
+    added_users = []
+    invalid_users = []
+    
+    for idx, user in enumerate(new_users):
+        # Validate data types and values
+        name = user.get('Name')
+        age = user.get('Age')
+
+        is_valid, error = validate_user_data(name, age)
+        if not is_valid:
+            invalid_users.append({'row': idx + 2, 'error': error})
+            continue
+        
+        name = str(name).strip()
+        age = int(age)
+
+        # Check if user already exists
+        if user_exists(name):
+            invalid_users.append({'row': idx + 2, 'error': f'User {name} already exists'})
+            continue
+        
+        # Add valid user
+        valid_user = {'Name': name, 'Age': age}
+        users.append(valid_user)
+        added_users.append(valid_user)
+    
+    response = {
+        'message': f'Successfully added {len(added_users)} users',
+        'added_users': added_users,
+    }
+    
+    if invalid_users:
+        response['invalid_users'] = invalid_users
+        response['warning'] = f'{len(invalid_users)} rows skipped due to validation errors or duplicates'
+
+    return jsonify(response), 201
 
 @app.route('/users/average-age', methods=['GET'])
 def get_average_age_by_group():
