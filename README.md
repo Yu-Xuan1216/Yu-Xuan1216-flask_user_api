@@ -14,6 +14,7 @@ A simple Flask API for creating, deleting, and managing users. Includes CSV uplo
 project/
 │
 ├─ app.py                # Main Flask application
+├─ test_app.py           # Unittest for User API
 ├─ requirements.txt      # Python dependencies
 ├─ Dockerfile            # Docker image build instructions
 └─ README.md             # Project documentation
